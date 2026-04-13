@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "MusicPromotion": {
+      "title": "Music Promotion",
+      "description": "A music promotion campaign for a Christian artist.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the song or campaign." },
+        "artist": { "type": "string", "description": "The name of the artist." },
+        "youtubeUrl": { "type": "string", "format": "uri", "description": "The YouTube video URL." },
+        "description": { "type": "string", "description": "A brief description of the song or campaign." },
+        "network": { "type": "string", "description": "The Christian TV network to submit to." },
+        "likes": { "type": "number", "description": "Number of likes." },
+        "reports": { "type": "number", "description": "Number of reports." },
+        "userId": { "type": "string", "description": "The UID of the user who posted it." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the promotion was created." }
+      },
+      "required": ["title", "artist", "youtubeUrl", "userId", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/promotions/{promotionId}": {
+      "schema": "MusicPromotion",
+      "description": "Collection of music promotions."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    }
+  }
+}

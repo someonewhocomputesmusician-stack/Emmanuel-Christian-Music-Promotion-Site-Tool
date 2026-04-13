@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: promotions
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required, 1-100 chars)
+    //   - artist: string (required, 1-100 chars)
+    //   - youtubeUrl: string (required, valid youtube url)
+    //   - description: string (optional, 0-500 chars)
+    //   - network: string (optional, 1-50 chars)
+    //   - likes: number (required, >= 0)
+    //   - reports: number (required, >= 0)
+    //   - userId: string (required, matches creator)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - role: string (required, 'user' or 'admin')
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "griffinhenry668@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidPromotion(data) {
+      return data.keys().hasAll(['title', 'artist', 'youtubeUrl', 'userId', 'createdAt', 'likes', 'reports']) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.artist is string && data.artist.size() >= 1 && data.artist.size() <= 100 &&
+             data.youtubeUrl is string && data.youtubeUrl.matches("^https://(www\\.)?youtube\\.com/.*") || data.youtubeUrl.matches("^https://youtu\\.be/.*") &&
+             data.userId == request.auth.uid &&
+             data.likes is number && data.likes >= 0 &&
+             data.reports is number && data.reports >= 0;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.role in ['user', 'admin'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+    }
+
+    match /promotions/{promotionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPromotion(request.resource.data);
+      allow update: if isAuthenticated() && (
+        // Owner can update everything except userId and createdAt
+        (isOwner(resource.data.userId) && 
+         request.resource.data.userId == resource.data.userId &&
+         request.resource.data.createdAt == resource.data.createdAt) ||
+        // Anyone can like/report (atomic increment)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']) && 
+         request.resource.data.likes == resource.data.likes + 1) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reports']) && 
+         request.resource.data.reports == resource.data.reports + 1) ||
+        isAdmin()
+      );
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+  }
+}
